@@ -59,11 +59,11 @@ public:
     */
 
 	/* Desired Pawn Inputs */
-	UPROPERTY(BlueprintReadWrite, Category = "Heli Movement | Input")
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Heli Movement | Input")
 	FVector DesiredInput;
 
 	/* Desired Pawn Yaw Inputs */
-	UPROPERTY(BlueprintReadWrite, Category = "Heli Movement | Input")
+	UPROPERTY(VisibleAnywhere,BlueprintReadWrite, Category = "Heli Movement | Input")
 	float DesiredYawInput;
 
 	/* Threshold that is allowed for the client to be out of sync and update for position in units */
@@ -131,6 +131,15 @@ public:
 
 	/* Client side simulation of movement */
 	void SimulateMovement(float DeltaTime);
+
+	/** Gently correct position and rotation based on server state */
+	void GentlyCorrectToServerState(float DeltaTime);
+
+	/** Update the authoritative state on the server */
+	void UpdateServerState();
+
+	/** Execute movement logic based on input */
+	void ExecuteMovement(float DeltaTime);
 
 	/* Used to bring the client in compliance with the server */
 	void RewindAndReconcile();
