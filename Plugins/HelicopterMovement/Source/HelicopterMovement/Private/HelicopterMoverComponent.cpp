@@ -56,13 +56,14 @@ void UHelicopterMoverComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 		ServerState.Velocity = CurrentVelocity;
 
 		// Debug server state
-		UE_LOG(LogTemp, Log, TEXT("ServerState Updated - Position: %s, Velocity: %s"),
-			   *ServerState.Position.ToString(), *ServerState.Velocity.ToString());
+		//UE_LOG(LogTemp, Log, TEXT("ServerState Updated - Position: %s, Velocity: %s"),
+		//	   *ServerState.Position.ToString(), *ServerState.Velocity.ToString());
 	}
 	else
 	{
 		// Client prediction
 		SimulateMovement(DeltaTime);
+		
 		RewindAndReconcile();
 	}
 
@@ -81,7 +82,7 @@ void UHelicopterMoverComponent::OnRep_ServerState()
 	GetOwner()->SetActorLocation(InterpolatedPosition);
 	GetOwner()->SetActorRotation(InterpolatedRotation);
 
-	UE_LOG(LogTemp, Log, TEXT("Interpolating to ServerState Position: %s, Rotation: %s"), *ServerState.Position.ToString(), *ServerState.Rotation.ToString());
+	//UE_LOG(LogTemp, Log, TEXT("Interpolating to ServerState Position: %s, Rotation: %s"), *ServerState.Position.ToString(), *ServerState.Rotation.ToString());
 }
 
 void UHelicopterMoverComponent::SimulateMovement(float DeltaTime)
@@ -102,39 +103,9 @@ void UHelicopterMoverComponent::SimulateMovement(float DeltaTime)
 	UpdateTilt(DeltaTime);
 
 	// Debug: Log predicted movement
-	UE_LOG(LogTemp, Log, TEXT("Simulated Movement - Position: %s, Velocity: %s"),
-		   *GetOwner()->GetActorLocation().ToString(), *CurrentVelocity.ToString());
+	//UE_LOG(LogTemp, Log, TEXT("Simulated Movement - Position: %s, Velocity: %s"),
+	//	   *GetOwner()->GetActorLocation().ToString(), *CurrentVelocity.ToString());
 }
-
-/*  ** Old Variation ** Delete me upon polish
-void UHelicopterMoverComponent::ApplyServerCorrection()
-{
-	// Interpolate to server position and rotation for smooth correction
-	FVector NewPosition = FMath::VInterpTo(GetOwner()->GetActorLocation(), ServerState.Position, GetWorld()->DeltaTimeSeconds, TiltSmoothingSpeed);
-	FRotator NewRotation = FMath::RInterpTo(GetOwner()->GetActorRotation(), ServerState.Rotation, GetWorld()->DeltaTimeSeconds, TiltSmoothingSpeed);
-
-	GetOwner()->SetActorLocation(NewPosition);
-	GetOwner()->SetActorRotation(NewRotation);
-}
-*/
-
-/* This function is focused on validating the client's predicted position against the server's authoritative state ** Least Prefered 
-void UHelicopterMoverComponent::RewindForValidation(float DeltaTime)
-{
-	if (PredictedStates.Num() == 0) return;
-
-	// Check the most recent predicted state
-	FHelicopterState LastPredictedState = PredictedStates[0];
-	PredictedStates.RemoveAt(0);
-
-	// Rewind to server position if there’s a significant error
-	if (!LastPredictedState.Position.Equals(ServerState.Position, 1.0f))
-	{
-		GetOwner()->SetActorLocation(ServerState.Position);
-		CurrentVelocity = ServerState.Velocity;
-	}
-}
-*/
 
 /* This function is designed to both rewind the client state for validation and smooth discrepancies between the client and server */
 void UHelicopterMoverComponent::RewindAndReconcile()
@@ -150,9 +121,10 @@ void UHelicopterMoverComponent::RewindAndReconcile()
 
 	if (bPositionMismatch || bRotationMismatch)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("RewindAndReconcile: Correcting mismatch. Position: %s, Rotation: %s"),
-			   *ServerState.Position.ToString(), *ServerState.Rotation.ToString());
+		//UE_LOG(LogTemp, Warning, TEXT("RewindAndReconcile: Correcting mismatch. Position: %s, Rotation: %s"),
+		//	   *ServerState.Position.ToString(), *ServerState.Rotation.ToString());
 
+		// TODO: Interpolate the corrected position for the client when they are moved/rewound.
 		// Correct position and rotation
 		GetOwner()->SetActorLocation(ServerState.Position);
 		GetOwner()->SetActorRotation(ServerState.Rotation);
@@ -186,7 +158,7 @@ void UHelicopterMoverComponent::UpdateThrottle(float DeltaTime)
 
 	// Check for vertical input and calculate target velocity
 	float TargetVerticalVelocity = FMath::IsNearlyZero(DesiredInput.Z)
-		? CurrentVelocity.Z  // No input, hold altitude 
+		? 0.0f  // No input, hold altitude 
 		: DesiredInput.Z * MaxVerticalSpeed;
 
 	// Smoothly interpolate to the target vertical velocity
@@ -197,7 +169,7 @@ void UHelicopterMoverComponent::UpdateThrottle(float DeltaTime)
 	GetOwner()->SetActorLocation(NewPosition, true);
 
 	// Debugging
-	UE_LOG(LogTemp, Log, TEXT("Vertical Movement: Desired Z: %f, Current Velocity Z: %f"), DesiredInput.Z, CurrentVelocity.Z);
+	//UE_LOG(LogTemp, Log, TEXT("Vertical Movement: Desired Z: %f, Current Velocity Z: %f"), DesiredInput.Z, CurrentVelocity.Z);
 }
 
 void UHelicopterMoverComponent::UpdateMovement(float DeltaTime)
@@ -215,16 +187,16 @@ void UHelicopterMoverComponent::UpdateMovement(float DeltaTime)
 
 	FVector NewPosition = GetOwner()->GetActorLocation() + CurrentVelocity * DeltaTime;
 
-	UE_LOG(LogTemp, Log, TEXT("DesiredInput: X = %f, Y = %f, Z = %f"), DesiredInput.X, DesiredInput.Y, DesiredInput.Z);
-	UE_LOG(LogTemp, Log, TEXT("TargetVelocity: %s, CurrentVelocity: %s"), *TargetVelocity.ToString(), *CurrentVelocity.ToString());
-	UE_LOG(LogTemp, Log, TEXT("Moving to NewPosition: %s"), *NewPosition.ToString());
+	//UE_LOG(LogTemp, Log, TEXT("DesiredInput: X = %f, Y = %f, Z = %f"), DesiredInput.X, DesiredInput.Y, DesiredInput.Z);
+	//UE_LOG(LogTemp, Log, TEXT("TargetVelocity: %s, CurrentVelocity: %s"), *TargetVelocity.ToString(), *CurrentVelocity.ToString());
+	//UE_LOG(LogTemp, Log, TEXT("Moving to NewPosition: %s"), *NewPosition.ToString());
 
 	FHitResult Hit;
 	bool bMoved = GetOwner()->SetActorLocation(NewPosition, true, &Hit);
 
 	if (!bMoved && Hit.IsValidBlockingHit())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Blocked by: %s at location: %s"), *Hit.GetActor()->GetName(), *Hit.ImpactPoint.ToString());
+	//	UE_LOG(LogTemp, Warning, TEXT("Blocked by: %s at location: %s"), *Hit.GetActor()->GetName(), *Hit.ImpactPoint.ToString());
 	}
 }
 
@@ -244,7 +216,7 @@ void UHelicopterMoverComponent::UpdateYaw(float DeltaTime)
 	GetOwner()->SetActorRotation(FRotator(CurrentRotation.Pitch, NewYaw, CurrentRotation.Roll));
 
 	// Debugging
-	UE_LOG(LogTemp, Log, TEXT("Yaw - TargetYawSpeed: %f, CurrentYawSpeed: %f"), TargetYawSpeed, CurrentYawSpeed);
+	//UE_LOG(LogTemp, Log, TEXT("Yaw - TargetYawSpeed: %f, CurrentYawSpeed: %f"), TargetYawSpeed, CurrentYawSpeed);
 }
 
 void UHelicopterMoverComponent::UpdateTilt(float DeltaTime)
@@ -252,8 +224,8 @@ void UHelicopterMoverComponent::UpdateTilt(float DeltaTime)
 	FVector ForwardVector = GetOwner()->GetActorForwardVector();
 	FVector RightVector = GetOwner()->GetActorRightVector();
 
-	float TargetPitch = FVector::DotProduct(CurrentVelocity, ForwardVector) / MaxForwardSpeed * -15.0f;
-	float TargetRoll = FVector::DotProduct(CurrentVelocity, RightVector) / MaxLateralSpeed * 15.0f;
+	float TargetPitch = FVector::DotProduct(CurrentVelocity, ForwardVector) / MaxForwardSpeed * -MaxTiltAngle;
+	float TargetRoll = FVector::DotProduct(CurrentVelocity, RightVector) / MaxLateralSpeed * MaxTiltAngle;
 
 	FRotator CurrentRotation = GetOwner()->GetActorRotation();
 	FRotator TargetRotation = FRotator(TargetPitch, CurrentRotation.Yaw, TargetRoll);

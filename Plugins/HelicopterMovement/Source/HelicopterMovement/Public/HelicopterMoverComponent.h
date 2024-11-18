@@ -122,6 +122,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Flight")
 	float VelocitySmoothingSpeed;
 
+	/* Max angle the helicopter can tilt on its axis */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tilt")
+	float MaxTiltAngle = 15.0f;
+
 	// Replication and reconciliation //
 	/* Used to replicate the interpolated values */
 	UFUNCTION()

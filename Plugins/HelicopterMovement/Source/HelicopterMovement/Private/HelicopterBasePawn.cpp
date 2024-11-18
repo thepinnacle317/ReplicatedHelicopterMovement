@@ -13,8 +13,8 @@ AHelicopterBasePawn::AHelicopterBasePawn()
 	bReplicates = true;
 
 	/* Network Update */
-	NetUpdateFrequency = 60.0f;
-	MinNetUpdateFrequency = 15.0f;
+	NetUpdateFrequency = 100.0f;
+	MinNetUpdateFrequency = 30.0f;
 
 	/* Construct Components */
 	HelicopterBody = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Helicopter Body"));
@@ -200,8 +200,8 @@ void AHelicopterBasePawn::ApplyTilt(float DeltaTime)
 	FVector DesiredInput = HelicopterMover->DesiredInput;
 
 	// Calculate tilt based on input
-	float TargetPitch = FMath::Clamp(-DesiredInput.X * MaxTiltAngle, -MaxTiltAngle, MaxTiltAngle); // Forward/Backward tilt
-	float TargetRoll = FMath::Clamp(DesiredInput.Y * MaxTiltAngle, -MaxTiltAngle, MaxTiltAngle);   // Left/Right tilt
+	float TargetPitch = FMath::Clamp(-DesiredInput.X * HelicopterMover->MaxTiltAngle, -HelicopterMover->MaxTiltAngle, HelicopterMover->MaxTiltAngle); // Forward/Backward tilt
+	float TargetRoll = FMath::Clamp(DesiredInput.Y * HelicopterMover->MaxTiltAngle, -HelicopterMover->MaxTiltAngle, HelicopterMover->MaxTiltAngle);   // Left/Right tilt
 
 	// Get the current rotation of the helicopter body
 	FRotator CurrentRotation = HelicopterBody->GetRelativeRotation();
