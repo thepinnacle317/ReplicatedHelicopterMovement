@@ -25,7 +25,6 @@ AHelicopterBasePawn::AHelicopterBasePawn()
 	HelicopterBody->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Block);
 	HelicopterBody->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
 
-	// Ensure physics simulation is off if using SetActorLocation
 	HelicopterBody->SetSimulatePhysics(false);
 	
 	MainRotor = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Main Rotor"));
@@ -70,7 +69,7 @@ void AHelicopterBasePawn::SetupPlayerInputComponent(UInputComponent* PlayerInput
 		EnhancedInput->BindAction(ThrottleAction, ETriggerEvent::Triggered, this, &AHelicopterBasePawn::HandleThrottleInput);
 		EnhancedInput->BindAction(ThrottleAction, ETriggerEvent::Completed, this, &AHelicopterBasePawn::HandleThrottleInputReleased);
 
-		EnhancedInput->BindAction(StartAction, ETriggerEvent::Started, this, &AHelicopterBasePawn::StartHelicopter);
+		//EnhancedInput->BindAction(StartAction, ETriggerEvent::Started, this, &AHelicopterBasePawn::StartHelicopter);
 	}
 }
 
@@ -78,14 +77,13 @@ void AHelicopterBasePawn::SetupPlayerInputComponent(UInputComponent* PlayerInput
 void AHelicopterBasePawn::StartHelicopter()
 {
 	bIsStartingUp = true;
-	RotorSpeed = 0.0f; // Start from zero
+	RotorSpeed = 0.0f;
 }
 
 void AHelicopterBasePawn::BeginPlay()
 {
 	Super::BeginPlay();
-
-	// Add input mapping context
+	
 	if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
 	{
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
@@ -100,8 +98,8 @@ void AHelicopterBasePawn::HandleMovementInput(const FInputActionValue& Value)
 	FVector2D Input = Value.Get<FVector2D>();
 	if (HelicopterMover)
 	{
-		HelicopterMover->DesiredInput.X = Input.X; // Forward/Backward
-		HelicopterMover->DesiredInput.Y = Input.Y; // Left/Right
+		HelicopterMover->DesiredInput.X = Input.X;
+		HelicopterMover->DesiredInput.Y = Input.Y;
 		//UE_LOG(LogTemp, Log, TEXT("Movement Input - X: %f, Y: %f"), Input.X, Input.Y);
 	}
 }
@@ -200,8 +198,8 @@ void AHelicopterBasePawn::ApplyTilt(float DeltaTime)
 	FVector DesiredInput = HelicopterMover->DesiredInput;
 
 	// Calculate tilt based on input
-	float TargetPitch = FMath::Clamp(-DesiredInput.X * HelicopterMover->MaxTiltAngle, -HelicopterMover->MaxTiltAngle, HelicopterMover->MaxTiltAngle); // Forward/Backward tilt
-	float TargetRoll = FMath::Clamp(DesiredInput.Y * HelicopterMover->MaxTiltAngle, -HelicopterMover->MaxTiltAngle, HelicopterMover->MaxTiltAngle);   // Left/Right tilt
+	float TargetPitch = FMath::Clamp(-DesiredInput.X * HelicopterMover->MaxTiltAngle, -HelicopterMover->MaxTiltAngle, HelicopterMover->MaxTiltAngle);
+	float TargetRoll = FMath::Clamp(DesiredInput.Y * HelicopterMover->MaxTiltAngle, -HelicopterMover->MaxTiltAngle, HelicopterMover->MaxTiltAngle); 
 
 	// Get the current rotation of the helicopter body
 	FRotator CurrentRotation = HelicopterBody->GetRelativeRotation();

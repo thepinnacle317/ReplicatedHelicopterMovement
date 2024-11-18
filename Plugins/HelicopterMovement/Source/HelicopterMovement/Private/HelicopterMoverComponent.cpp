@@ -5,8 +5,6 @@
 #include "Net/UnrealNetwork.h"
 #include "DrawDebugHelpers.h"
 
-
-
 UHelicopterMoverComponent::UHelicopterMoverComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
@@ -54,8 +52,7 @@ void UHelicopterMoverComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 		ServerState.Position = GetOwner()->GetActorLocation();
 		ServerState.Rotation = GetOwner()->GetActorRotation();
 		ServerState.Velocity = CurrentVelocity;
-
-		// Debug server state
+		
 		//UE_LOG(LogTemp, Log, TEXT("ServerState Updated - Position: %s, Velocity: %s"),
 		//	   *ServerState.Position.ToString(), *ServerState.Velocity.ToString());
 	}
@@ -63,7 +60,6 @@ void UHelicopterMoverComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 	{
 		// Client prediction
 		SimulateMovement(DeltaTime);
-		
 		RewindAndReconcile();
 	}
 
@@ -101,8 +97,7 @@ void UHelicopterMoverComponent::SimulateMovement(float DeltaTime)
 	UpdateMovement(DeltaTime);
 	UpdateYaw(DeltaTime);
 	UpdateTilt(DeltaTime);
-
-	// Debug: Log predicted movement
+	
 	//UE_LOG(LogTemp, Log, TEXT("Simulated Movement - Position: %s, Velocity: %s"),
 	//	   *GetOwner()->GetActorLocation().ToString(), *CurrentVelocity.ToString());
 }
@@ -167,8 +162,7 @@ void UHelicopterMoverComponent::UpdateThrottle(float DeltaTime)
 	// Apply the vertical velocity to move the helicopter
 	FVector NewPosition = GetOwner()->GetActorLocation() + FVector(0.0f, 0.0f, CurrentVelocity.Z * DeltaTime);
 	GetOwner()->SetActorLocation(NewPosition, true);
-
-	// Debugging
+	
 	//UE_LOG(LogTemp, Log, TEXT("Vertical Movement: Desired Z: %f, Current Velocity Z: %f"), DesiredInput.Z, CurrentVelocity.Z);
 }
 
@@ -214,8 +208,7 @@ void UHelicopterMoverComponent::UpdateYaw(float DeltaTime)
 	FRotator CurrentRotation = GetOwner()->GetActorRotation();
 	float NewYaw = CurrentRotation.Yaw + CurrentYawSpeed * DeltaTime;
 	GetOwner()->SetActorRotation(FRotator(CurrentRotation.Pitch, NewYaw, CurrentRotation.Roll));
-
-	// Debugging
+	
 	//UE_LOG(LogTemp, Log, TEXT("Yaw - TargetYawSpeed: %f, CurrentYawSpeed: %f"), TargetYawSpeed, CurrentYawSpeed);
 }
 

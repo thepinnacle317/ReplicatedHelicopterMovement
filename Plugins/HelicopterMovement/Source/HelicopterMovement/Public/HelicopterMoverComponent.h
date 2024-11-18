@@ -40,7 +40,6 @@ public:
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	
-    // Scene Components for Attachments //
 	/* Pilot Pawn attachment location */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
     USceneComponent* PilotSeat;
@@ -60,12 +59,12 @@ public:
     */
 
 	/* Desired Pawn Inputs */
-	UPROPERTY(BlueprintReadWrite, Category = "Input")
-	FVector DesiredInput;  // X = Forward/Backward, Y = Sideways, Z = Vertical
+	UPROPERTY(BlueprintReadWrite, Category = "Heli Movement | Input")
+	FVector DesiredInput;
 
 	/* Desired Pawn Yaw Inputs */
-	UPROPERTY(BlueprintReadWrite, Category = "Input")
-	float DesiredYawInput; // Tail rotor input (yaw)
+	UPROPERTY(BlueprintReadWrite, Category = "Heli Movement | Input")
+	float DesiredYawInput;
 
 	/* Threshold that is allowed for the client to be out of sync and update for position in units */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="Heli Movement | Network Correction")
@@ -125,8 +124,7 @@ public:
 	/* Max angle the helicopter can tilt on its axis */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tilt")
 	float MaxTiltAngle = 15.0f;
-
-	// Replication and reconciliation //
+	
 	/* Used to replicate the interpolated values */
 	UFUNCTION()
 	void OnRep_ServerState();
@@ -136,10 +134,6 @@ public:
 
 	/* Used to bring the client in compliance with the server */
 	void RewindAndReconcile();
-	
-	//void ApplyServerCorrection(); ** Delete me upon polish
-	
-	//void RewindForValidation(float DeltaTime); ** Delete me upon polish
 	
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
