@@ -1,15 +1,11 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/MovementComponent.h"
+#include "Components/ActorComponent.h"
 #include "HelicopterMoverComponent.generated.h"
 
-/*
- *
- */
-USTRUCT(BlueprintType)
+/** Struct to hold state data for prediction and reconciliation */
+USTRUCT()
 struct FHelicopterState
 {
 	GENERATED_BODY()
@@ -23,146 +19,100 @@ struct FHelicopterState
 	UPROPERTY()
 	FVector Velocity;
 
-	FHelicopterState()
-		: Position(FVector::ZeroVector), Rotation(FRotator::ZeroRotator), Velocity(FVector::ZeroVector) {}
+	UPROPERTY()
+	float Timestamp;
 };
 
-/*
- * 
- */
-UCLASS()
-class HELICOPTERMOVEMENT_API UHelicopterMoverComponent : public UMovementComponent
+/** Struct for inputs used in movement prediction */
+USTRUCT()
+struct FHelicopterInput
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FVector DesiredInput;
+
+	UPROPERTY()
+	float DesiredYawInput;
+
+	UPROPERTY()
+	float Timestamp;
+};
+
+UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
+class HELICOPTERMOVEMENT_API UHelicopterMoverComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
 public:
 	UHelicopterMoverComponent();
 
-	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
-	
-	/* Pilot Pawn attachment location */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
-    USceneComponent* PilotSeat;
-
-	/* Passenger 1 Pawn attachment location */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
-    USceneComponent* PassengerSeat1;
-
-	/* Passenger 2 Pawn attachment location */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
-    USceneComponent* PassengerSeat2;
-
-    /* Weapon System Placeholder  *** Will create this after I have some solid movement and tie in my replicated targeting component
-     * with this for reliable and fast hits
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
-    class UHelicopterWeaponSystem* WeaponSystem;
-    */
-
-	/* Desired Pawn Inputs */
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Heli Movement | Input")
+	/** Input variables */
+	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "Input")
 	FVector DesiredInput;
 
-	/* Desired Pawn Yaw Inputs */
-	UPROPERTY(VisibleAnywhere,BlueprintReadWrite, Category = "Heli Movement | Input")
+	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "Input")
 	float DesiredYawInput;
 
-	/* Threshold that is allowed for the client to be out of sync and update for position in units */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="Heli Movement | Network Correction")
-	float PositionThreshold;
-
-	/* Threshold that is allowed for the client to be out of sync and update for rotation in degrees */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="Heli Movement | Network Correction")
-	float RotationThreshold;
-
-	/* Interpolation speed for the server to correct the client */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="Heli Movement | Network Correction")
-	float ServerCorrectionInterpolation;
-	
-	/* Current Pawn Velocity */
-	FVector CurrentVelocity;
-	/* Current Pawn Yaw Speed */
-	float CurrentYawSpeed;
-
-	/* Server Replicated State */
-	UPROPERTY(ReplicatedUsing = OnRep_ServerState)
-	FHelicopterState ServerState;
-
-	/* Prediction States Stored */
-	TArray<FHelicopterState> PredictedStates;
-
-	// Movement parameters //
-	/* Maximum allowed speed for the pawn */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Flight")
+	/** Helicopter movement configuration */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Settings")
 	float MaxForwardSpeed;
 
-	/* Maximum allowed lateral speed for the pawn */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Flight")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Settings")
 	float MaxLateralSpeed;
 
-	/* Maximum vertical speed for the pawn to climb */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Flight")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Settings")
 	float MaxVerticalSpeed;
 
-	/* How fast the pawn can Yaw */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Flight")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Settings")
 	float YawSpeed;
 
-	// Damping and smoothing //
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Settings")
+	float VelocityDamping;
 
-	/* Reduces velocity over time */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Flight")
-	float VelocityDamping; 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Settings")
+	float CorrectionInterpolation;
 
-	/* Interpolation speed of helicopter body tilt */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Flight")
-	float TiltSmoothingSpeed; // Speed of tilt adjustment
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Settings")
+	float PositionErrorThreshold;
 
-	/* Velocity interpolation speed */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Flight")
-	float VelocitySmoothingSpeed;
-
-	/* Max angle the helicopter can tilt on its axis */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tilt")
-	float MaxTiltAngle = 15.0f;
-	
-	/* Used to replicate the interpolated values */
-	UFUNCTION()
-	void OnRep_ServerState();
-
-	/* Client side simulation of movement */
-	void SimulateMovement(float DeltaTime);
-
-	/** Gently correct position and rotation based on server state */
-	void GentlyCorrectToServerState(float DeltaTime);
-
-	/** Update the authoritative state on the server */
-	void UpdateServerState();
-
-	/** Execute movement logic based on input */
-	void ExecuteMovement(float DeltaTime);
-
-	/* Used to bring the client in compliance with the server */
-	void RewindAndReconcile();
-	
-	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
-
-	/* Used for the client to send input values to the server */
-	UFUNCTION(Server, Reliable, WithValidation)
-	void SendInputToServer(FVector InputVector, float YawInput);
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Settings")
+	float RotationErrorThreshold;
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
+	/** Networking */
+	UFUNCTION(Server, Reliable, WithValidation)
+	void Server_SendInput(const FHelicopterInput& Input);
+
+	void Server_SendInput_Implementation(const FHelicopterInput& Input);
+	bool Server_SendInput_Validate(const FHelicopterInput& Input);
+
+	UFUNCTION()
+	void OnRep_ServerState();
+
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+	bool IsOwnerLocallyControlled() const;
 
 private:
-	void UpdateThrottle(float DeltaTime);
-	
-	void UpdateMovement(float DeltaTime);
-	
-	void UpdateYaw(float DeltaTime);
-	
-	void UpdateTilt(float DeltaTime);
+	/** Movement functions */
+	void ApplyInput(float DeltaTime);
+	void CorrectClientState();
+	void SavePredictedState(float Timestamp);
+	void ReconcileState();
+	void UpdateServerState();
 
-	/* Used in update movement for refined movement */
-	FVector SmoothVelocity(FVector Current, FVector Target, float Damping, float DeltaTime);
-	
+	/** Current velocity and yaw speed */
+	FVector CurrentVelocity;
+	float CurrentYawSpeed;
+
+	/** State management */
+	UPROPERTY(Replicated, ReplicatedUsing = OnRep_ServerState)
+	FHelicopterState ServerState;
+
+	/** Predicted states for reconciliation */
+	TArray<FHelicopterState> PredictedStates;
 };
