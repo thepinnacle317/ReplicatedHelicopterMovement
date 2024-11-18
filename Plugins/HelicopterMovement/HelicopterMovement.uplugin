@@ -1,0 +1,24 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "HelicopterMovement",
+	"Description": "Network replicated and predicted helicopter movement system.",
+	"Category": "Pinnacle Tools",
+	"CreatedBy": "Nicholas Bonofiglio",
+	"CreatedByURL": "",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": true,
+	"IsBetaVersion": true,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "HelicopterMovement",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	]
+}
