@@ -6,7 +6,17 @@
 #include "InputAction.h"
 #include "HelicopterBasePawn.generated.h"
 
+/* Forward Declarations */
 class UHelicopterMoverComponent;
+
+UENUM(BlueprintType)
+enum class EEngine_State : uint8
+{
+	EES_EngineOn UMETA(DisplayName = "Engine On"),
+	EES_EngineOff UMETA(DisplayName = "Engine Off"),
+
+	EES_Max UMETA(DisplayName = "Default Max")
+};
 
 UCLASS()
 class HELICOPTERMOVEMENT_API AHelicopterBasePawn : public APawn
@@ -33,27 +43,27 @@ public:
 	UHelicopterMoverComponent* HelicopterMover;
 
 	// Input
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input Actions")
 	UInputMappingContext* HelicopterInputMapping;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input Actions")
 	UInputAction* MoveAction;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input Actions")
 	UInputAction* YawAction;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input Actions")
 	UInputAction* ThrottleAction;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	UInputAction* StartAction;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	UInputAction* StopAction;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input Actions")
+	UInputAction* EngineToggleAction;
 
 	// Rotor Spin-Up
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Rotor")
 	float RotorSpinUpTime;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Helicopter Properties")
+	EEngine_State EngineState;
 
 protected:
 	virtual void BeginPlay() override;

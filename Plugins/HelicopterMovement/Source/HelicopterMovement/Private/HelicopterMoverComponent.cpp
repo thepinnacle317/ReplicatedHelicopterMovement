@@ -17,6 +17,9 @@ UHelicopterMoverComponent::UHelicopterMoverComponent()
 	PositionErrorThreshold = 10.0f;
 	RotationErrorThreshold = 5.0f;
 
+	MaxTiltAngle = 15.0f;
+	TiltSmoothingSpeed = 5.0f;
+
 	SetIsReplicatedByDefault(true);
 }
 
@@ -57,6 +60,9 @@ void UHelicopterMoverComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 		// Reconcile state with server
 		ReconcileState();
 	}
+
+	// Apply this after all the corrections have been made
+	ApplyBodyTilt(DeltaTime);
 }
 
 void UHelicopterMoverComponent::Server_SendInput_Implementation(const FHelicopterInput& Input)
@@ -65,7 +71,7 @@ void UHelicopterMoverComponent::Server_SendInput_Implementation(const FHelicopte
 	DesiredYawInput = Input.DesiredYawInput;
 
 	// Apply input on the server
-	ApplyInput(GetWorld()->DeltaTimeSeconds);
+	//ApplyInput(GetWorld()->DeltaTimeSeconds);
 
 	// Update server state
 	ServerState.Position = GetOwner()->GetActorLocation();
@@ -90,6 +96,9 @@ void UHelicopterMoverComponent::GetLifetimeReplicatedProps(TArray<FLifetimePrope
 	// Replicate the input variables
 	DOREPLIFETIME(UHelicopterMoverComponent, DesiredInput);
 	DOREPLIFETIME(UHelicopterMoverComponent, DesiredYawInput);
+
+	// Helicopter Velocity
+	DOREPLIFETIME(UHelicopterMoverComponent, CurrentVelocity);
 
 	// Replicate the server state for correction
 	DOREPLIFETIME(UHelicopterMoverComponent, ServerState);
@@ -132,10 +141,13 @@ void UHelicopterMoverComponent::ApplyInput(float DeltaTime)
 	float TargetYawSpeed = DesiredYawInput * YawSpeed;
 	CurrentYawSpeed = FMath::FInterpTo(CurrentYawSpeed, TargetYawSpeed, DeltaTime, VelocityDamping);
 
-	// Apply yaw
+	// Apply yaw without overriding pitch and roll
 	FRotator CurrentRotation = GetOwner()->GetActorRotation();
 	float NewYaw = CurrentRotation.Yaw + CurrentYawSpeed * DeltaTime;
-	GetOwner()->SetActorRotation(FRotator(0.0f, NewYaw, 0.0f));
+
+	// Preserve the pitch and roll while updating yaw
+	FRotator NewRotation = FRotator(CurrentRotation.Pitch, NewYaw, CurrentRotation.Roll);
+	GetOwner()->SetActorRotation(NewRotation);
 }
 
 void UHelicopterMoverComponent::SavePredictedState(float Timestamp)
@@ -184,18 +196,85 @@ void UHelicopterMoverComponent::UpdateServerState()
 	ServerState.Timestamp = GetWorld()->GetTimeSeconds();
 }
 
+void UHelicopterMoverComponent::ApplyBodyTilt(float DeltaTime)
+{
+	if (!GetOwner()) return;
+
+	// Get the helicopter's body mesh (if it exists)
+	UStaticMeshComponent* HelicopterBody = Cast<UStaticMeshComponent>(GetOwner()->GetRootComponent());
+	if (!HelicopterBody) return;
+
+	FVector ForwardVector = GetOwner()->GetActorForwardVector();
+	FVector RightVector = GetOwner()->GetActorRightVector();
+
+	// Calculate tilt angles (pitch and roll) based on velocity
+	float TargetPitch = FVector::DotProduct(CurrentVelocity, ForwardVector) / MaxForwardSpeed * -MaxTiltAngle;
+	float TargetRoll = FVector::DotProduct(CurrentVelocity, RightVector) / MaxLateralSpeed * MaxTiltAngle;
+
+	// Clamp tilt angles
+	TargetPitch = FMath::Clamp(TargetPitch, -MaxTiltAngle, MaxTiltAngle);
+	TargetRoll = FMath::Clamp(TargetRoll, -MaxTiltAngle, MaxTiltAngle);
+
+	// Get the current relative rotation
+	FRotator CurrentRotation = HelicopterBody->GetRelativeRotation();
+
+	// Calculate target rotation
+	FRotator TargetRotation = FRotator(TargetPitch, CurrentRotation.Yaw, TargetRoll);
+
+	// Smoothly interpolate to the target rotation
+	FRotator SmoothedRotation = FMath::RInterpTo(CurrentRotation, TargetRotation, DeltaTime, TiltSmoothingSpeed);
+
+	// Apply the smoothed tilt to the helicopter body
+	HelicopterBody->SetRelativeRotation(SmoothedRotation);
+
+	// Debugging
+	//UE_LOG(LogTemp, Log, TEXT("Tilt - Pitch: %f, Roll: %f"), TargetPitch, TargetRoll);
+}
+
 void UHelicopterMoverComponent::CorrectClientState()
 {
 	// Interpolate to the server's authoritative state
 	FVector CurrentPosition = GetOwner()->GetActorLocation();
 	FRotator CurrentRotation = GetOwner()->GetActorRotation();
 
-	FVector InterpolatedPosition = FMath::VInterpTo(CurrentPosition, ServerState.Position, GetWorld()->DeltaTimeSeconds, CorrectionInterpolation);
-	FRotator InterpolatedRotation = FMath::RInterpTo(CurrentRotation, ServerState.Rotation, GetWorld()->DeltaTimeSeconds, CorrectionInterpolation);
+	//FVector InterpolatedPosition = FMath::VInterpTo(CurrentPosition, ServerState.Position, GetWorld()->DeltaTimeSeconds, CorrectionInterpolation);
+	//FRotator InterpolatedRotation = FMath::RInterpTo(CurrentRotation, ServerState.Rotation, GetWorld()->DeltaTimeSeconds, CorrectionInterpolation);
 
-	GetOwner()->SetActorLocation(InterpolatedPosition);
-	GetOwner()->SetActorRotation(InterpolatedRotation);
+	//GetOwner()->SetActorLocation(InterpolatedPosition);
+	//GetOwner()->SetActorRotation(InterpolatedRotation);
 
-	// Update velocity to match server state ** maybe???
-	//CurrentVelocity = ServerState.Velocity; 
+	// Correct position if the error is significant
+	if (!CurrentPosition.Equals(ServerState.Position, PositionErrorThreshold))
+	{
+		FVector InterpolatedPosition = FMath::VInterpTo(CurrentPosition, ServerState.Position, GetWorld()->DeltaTimeSeconds, CorrectionInterpolation);
+		GetOwner()->SetActorLocation(InterpolatedPosition);
+	}
+
+	
+	// Correct rotation if the error is significant
+	if (!CurrentRotation.Equals(ServerState.Rotation, RotationErrorThreshold))
+	{
+		FRotator InterpolatedRotation = FMath::RInterpTo(CurrentRotation, ServerState.Rotation, GetWorld()->DeltaTimeSeconds, CorrectionInterpolation);
+		GetOwner()->SetActorRotation(InterpolatedRotation);
+	}
+	
+
+	/*
+	// Correct yaw only, ignore pitch and roll
+	if (FMath::Abs(CurrentRotation.Yaw - ServerState.Rotation.Yaw) > RotationErrorThreshold)
+	{
+		FRotator TargetRotation = FRotator(CurrentRotation.Pitch, ServerState.Rotation.Yaw, CurrentRotation.Roll);
+		FRotator InterpolatedRotation = FMath::RInterpTo(CurrentRotation, TargetRotation, GetWorld()->DeltaTimeSeconds, CorrectionInterpolation);
+		GetOwner()->SetActorRotation(InterpolatedRotation);
+	}
+	*/
+
+	/*
+	// Only correct velocity if there's a large discrepancy
+	if (!CurrentVelocity.Equals(ServerState.Velocity, PositionErrorThreshold))
+	{
+		CurrentVelocity = FMath::VInterpTo(CurrentVelocity, ServerState.Velocity, GetWorld()->DeltaTimeSeconds, CorrectionInterpolation);
+	}
+	*/
+
 }

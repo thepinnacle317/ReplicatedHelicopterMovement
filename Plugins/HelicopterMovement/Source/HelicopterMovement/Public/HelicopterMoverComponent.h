@@ -79,6 +79,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Settings")
 	float RotationErrorThreshold;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Settings")
+	float MaxTiltAngle;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Settings")
+	float TiltSmoothingSpeed;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
@@ -105,7 +111,10 @@ private:
 	void ReconcileState();
 	void UpdateServerState();
 
+	void ApplyBodyTilt(float DeltaTime);
+
 	/** Current velocity and yaw speed */
+	UPROPERTY(Replicated)
 	FVector CurrentVelocity;
 	float CurrentYawSpeed;
 

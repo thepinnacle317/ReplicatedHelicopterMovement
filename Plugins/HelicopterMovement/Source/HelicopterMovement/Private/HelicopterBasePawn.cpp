@@ -9,8 +9,8 @@ AHelicopterBasePawn::AHelicopterBasePawn()
 	bReplicates = true;
 
 	// Network Configuration
-	NetUpdateFrequency = 60.0f;
-	MinNetUpdateFrequency = 15.0f;
+	NetUpdateFrequency = 100.0f;
+	MinNetUpdateFrequency = 30.0f;
 
 	// Components
 	HelicopterBody = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("HelicopterBody"));
@@ -28,9 +28,11 @@ AHelicopterBasePawn::AHelicopterBasePawn()
 	HelicopterMover = CreateDefaultSubobject<UHelicopterMoverComponent>(TEXT("HelicopterMover"));
 	HelicopterMover->SetIsReplicated(true);
 
-	RotorSpinUpTime = 2.0f;
+	RotorSpinUpTime = 10.0f;
 	RotorSpeed = 0.0f;
 	bIsStartingUp = false;
+
+	EngineState = EEngine_State::EES_EngineOff;
 }
 
 void AHelicopterBasePawn::BeginPlay()
@@ -76,8 +78,7 @@ void AHelicopterBasePawn::SetupPlayerInputComponent(UInputComponent* PlayerInput
 		EnhancedInput->BindAction(ThrottleAction, ETriggerEvent::Completed, this, &AHelicopterBasePawn::HandleThrottleInputReleased);
 
 		// Bind rotor controls
-		EnhancedInput->BindAction(StartAction, ETriggerEvent::Triggered, this, &AHelicopterBasePawn::StartHelicopter);
-		EnhancedInput->BindAction(StopAction, ETriggerEvent::Triggered, this, &AHelicopterBasePawn::StopHelicopter);
+		EnhancedInput->BindAction(EngineToggleAction, ETriggerEvent::Triggered, this, &AHelicopterBasePawn::StartHelicopter);
 	}
 }
 
@@ -100,12 +101,17 @@ void AHelicopterBasePawn::UpdateRotorSpeed(float DeltaTime)
 		RotorSpeed = FMath::Clamp(RotorSpeed + DeltaTime / RotorSpinUpTime, 0.0f, 1.0f);
 
 		MainRotor->AddRelativeRotation(FRotator(0.0f, RotorSpeed * 720.0f * DeltaTime, 0.0f));
-		TailRotor->AddRelativeRotation(FRotator(0.0f, RotorSpeed * 720.0f * DeltaTime, 0.0f));
-
+		TailRotor->AddRelativeRotation(FRotator(RotorSpeed * 540.0f * DeltaTime, 0.0f, 0.0f));
+		
 		if (RotorSpeed >= 1.0f)
 		{
-			bIsStartingUp = false;
+			EngineState = EEngine_State::EES_EngineOn;
 		}
+	}
+	else
+	{
+		EngineState = EEngine_State::EES_EngineOff;
+		bIsStartingUp = false;
 	}
 }
 
