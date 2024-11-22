@@ -100,43 +100,54 @@ void AHelicopterBasePawn::SetupPlayerInputComponent(UInputComponent* PlayerInput
 
 void AHelicopterBasePawn::StartHelicopter()
 {
-	if (HasAuthority())
+	if (!HasAuthority())
 	{
 		Server_StartEngine();
+		return;
 	}
+	EngineState = EEngine_State::EES_Starting;
 }
 
 void AHelicopterBasePawn::StopHelicopter()
 {
-	if (HasAuthority())
+	if (!HasAuthority())
 	{
 		Server_StopEngine();
+		return;
 	}
+	EngineState = EEngine_State::EES_Stopping;
+}
+
+void AHelicopterBasePawn::Server_ToggleEngines_Implementation()
+{
+	ToggleEngines();
 }
 
 void AHelicopterBasePawn::ToggleEngines()
 {
-	if (HasAuthority())
+
+	if (EngineState == EEngine_State::EES_EngineOff || EngineState == EEngine_State::EES_Stopping)
 	{
-		if (EngineState == EEngine_State::EES_EngineOff || EngineState == EEngine_State::EES_Stopping)
-		{
-			StartHelicopter();
-		}
-		else if (EngineState == EEngine_State::EES_EngineOn || EngineState == EEngine_State::EES_Starting)
-		{
-			StopHelicopter();
-		}
+		StartHelicopter();
+	}
+	else if (EngineState == EEngine_State::EES_EngineOn || EngineState == EEngine_State::EES_Starting)
+	{
+		StopHelicopter();
+	}
+	else
+	{
+		Server_ToggleEngines();
 	}
 }
 
 void AHelicopterBasePawn::Server_StartEngine_Implementation()
 {
-	EngineState = EEngine_State::EES_Starting;
+	StartHelicopter();
 }
 
 void AHelicopterBasePawn::Server_StopEngine_Implementation()
 {
-	EngineState = EEngine_State::EES_Stopping;
+	StopHelicopter();
 }
 
 void AHelicopterBasePawn::UpdateRotorSpeed(float DeltaTime)

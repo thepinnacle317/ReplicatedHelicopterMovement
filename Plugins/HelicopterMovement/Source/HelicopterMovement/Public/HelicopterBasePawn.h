@@ -99,6 +99,8 @@ private:
 	void Server_StopEngine();
 	void StopHelicopter();
 
+	UFUNCTION(Server, Reliable)
+	void Server_ToggleEngines();
 	void ToggleEngines();
 	void UpdateRotorSpeed(float DeltaTime);
 	void SpinRotors(float DeltaTime);
