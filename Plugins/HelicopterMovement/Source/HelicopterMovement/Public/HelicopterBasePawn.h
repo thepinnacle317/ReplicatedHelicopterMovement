@@ -14,6 +14,8 @@ enum class EEngine_State : uint8
 {
 	EES_EngineOn UMETA(DisplayName = "Engine On"),
 	EES_EngineOff UMETA(DisplayName = "Engine Off"),
+	EES_Starting UMETA(DisplayName = "Starting Engine"),
+	EES_Stopping UMETA(DisplayName = "Stopping Engine"),
 
 	EES_Max UMETA(DisplayName = "Default Max")
 };
@@ -29,40 +31,49 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
-	// Helicopter Components
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	UStaticMeshComponent* HelicopterBody;
+	/* * * Helicopter Components * * */
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Helicopter Properties | Core Components")
+	TObjectPtr<UStaticMeshComponent> HelicopterBody;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	UStaticMeshComponent* MainRotor;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Helicopter Properties | Core Components")
+	TObjectPtr<UStaticMeshComponent> MainRotor;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	UStaticMeshComponent* TailRotor;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Helicopter Properties | Core Components")
+	TObjectPtr<UStaticMeshComponent> TailRotor;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	UHelicopterMoverComponent* HelicopterMover;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Helicopter Properties | Core Components")
+	TObjectPtr<UHelicopterMoverComponent> HelicopterMover;
 
-	// Input
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input Actions")
-	UInputMappingContext* HelicopterInputMapping;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Helicopter Properties | Seating")
+	TObjectPtr<USceneComponent> PilotsSeat;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input Actions")
-	UInputAction* MoveAction;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Helicopter Properties | Seating")
+	TObjectPtr<USceneComponent> LeftPassenger;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input Actions")
-	UInputAction* YawAction;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Helicopter Properties | Seating")
+	TObjectPtr<USceneComponent> RightPassenger;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input Actions")
-	UInputAction* ThrottleAction;
+	/* Input Mapping Context */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Helicopter Properties | Input Actions")
+	TObjectPtr<UInputMappingContext> HelicopterInputMapping;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input Actions")
-	UInputAction* EngineToggleAction;
+	/* * * Input Actions * * */ // All input will be moved to a player controller eventually
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Helicopter Properties | Input Actions")
+	TObjectPtr<UInputAction> MoveAction;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Helicopter Properties | Input Actions")
+	TObjectPtr<UInputAction> YawAction;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Helicopter Properties | Input Actions")
+	TObjectPtr<UInputAction> ThrottleAction;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Helicopter Properties | Input Actions")
+	TObjectPtr<UInputAction> EngineToggleAction;
 
-	// Rotor Spin-Up
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Rotor")
+	/* How long it takes for the rotors to get to full RPM speed for startup */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Helicopter Properties | Rotor Configs")
 	float RotorSpinUpTime;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Helicopter Properties")
+	/* Used to track the state of the engines being on/off */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Helicopter Properties | Engines")
 	EEngine_State EngineState;
 
 protected:

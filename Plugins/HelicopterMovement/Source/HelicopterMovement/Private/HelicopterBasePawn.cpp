@@ -1,3 +1,5 @@
+#pragma once
+
 #include "HelicopterBasePawn.h"
 #include "HelicopterMoverComponent.h"
 #include "EnhancedInputSubsystems.h"

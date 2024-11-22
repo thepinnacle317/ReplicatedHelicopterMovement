@@ -20,6 +20,12 @@ UHelicopterMoverComponent::UHelicopterMoverComponent()
 	MaxTiltAngle = 15.0f;
 	TiltSmoothingSpeed = 5.0f;
 
+	BounceDampingFactor = 0.7f; 
+	ImpactOffset = 5.0f;
+	CollisionSphere = 150;
+	SurfaceFriction = 0.9f;
+	SkidVelocityThreshold = 400.0f;
+
 	SetIsReplicatedByDefault(true);
 }
 
@@ -69,9 +75,6 @@ void UHelicopterMoverComponent::Server_SendInput_Implementation(const FHelicopte
 {
 	DesiredInput = Input.DesiredInput;
 	DesiredYawInput = Input.DesiredYawInput;
-
-	// Apply input on the server
-	//ApplyInput(GetWorld()->DeltaTimeSeconds);
 
 	// Update server state
 	ServerState.Position = GetOwner()->GetActorLocation();
@@ -133,10 +136,33 @@ void UHelicopterMoverComponent::ApplyInput(float DeltaTime)
 	// Smooth velocity
 	CurrentVelocity = FMath::VInterpTo(CurrentVelocity, TargetVelocity, DeltaTime, VelocityDamping);
 
-	// Apply movement
-	FVector NewPosition = GetOwner()->GetActorLocation() + CurrentVelocity * DeltaTime;
-	GetOwner()->SetActorLocation(NewPosition, true);
+	// Perform collision-aware movement
+	FHitResult HitResult;
+	FVector Start = GetOwner()->GetActorLocation();
+	FVector End = Start + CurrentVelocity * DeltaTime;
 
+	FCollisionShape CollisionShape = FCollisionShape::MakeSphere(CollisionSphere);
+
+	bool bHit = GetWorld()->SweepSingleByChannel(
+		HitResult,
+		Start,
+		End,
+		FQuat::Identity,
+		ECC_WorldStatic,
+		CollisionShape,
+		FCollisionQueryParams(FName(TEXT("HelicopterSweep")), true, GetOwner())
+	);
+
+	if (bHit && HitResult.IsValidBlockingHit())
+	{
+		HandleCollision(HitResult, DeltaTime);
+	}
+	else
+	{
+		// No collision, move normally
+		GetOwner()->SetActorLocation(End, true);
+	}
+	
 	// Calculate yaw
 	float TargetYawSpeed = DesiredYawInput * YawSpeed;
 	CurrentYawSpeed = FMath::FInterpTo(CurrentYawSpeed, TargetYawSpeed, DeltaTime, VelocityDamping);
@@ -162,29 +188,51 @@ void UHelicopterMoverComponent::SavePredictedState(float Timestamp)
 
 void UHelicopterMoverComponent::ReconcileState()
 {
-	if (PredictedStates.Num() == 0)
-		return;
+	if (PredictedStates.Num() == 0)	return;
 
 	FHelicopterState LastPredictedState = PredictedStates[0];
 	PredictedStates.RemoveAt(0);
 
-	// Check for mismatches
-	if (!LastPredictedState.Position.Equals(ServerState.Position, PositionErrorThreshold))
-	{
-		// Correct position
-		GetOwner()->SetActorLocation(ServerState.Position);
-	}
+	FHitResult HitResult;
+	FVector Start = GetOwner()->GetActorLocation();
+	FVector End = ServerState.Position;
+	
+	// Sweep to ensure collision compliance
+	FCollisionShape CollisionShape = FCollisionShape::MakeSphere(CollisionSphere); // Adjust size as needed
+	bool bHit = GetWorld()->SweepSingleByChannel(
+		HitResult,
+		Start,
+		End,
+		FQuat::Identity,
+		ECC_WorldStatic,
+		CollisionShape,
+		FCollisionQueryParams(FName(TEXT("ReconcileSweep")), true, GetOwner())
+	);
 
-	if (!LastPredictedState.Rotation.Equals(ServerState.Rotation, RotationErrorThreshold))
+	if (bHit && HitResult.IsValidBlockingHit())
 	{
-		// Correct rotation
-		GetOwner()->SetActorRotation(ServerState.Rotation);
+		HandleCollision(HitResult, GetWorld()->DeltaTimeSeconds);
 	}
-
-	// Reapply remaining predicted inputs
-	for (int32 i = 1; i < PredictedStates.Num(); i++)
+	else
 	{
-		ApplyInput(GetWorld()->DeltaTimeSeconds);
+		// Check for mismatches
+		if (!LastPredictedState.Position.Equals(ServerState.Position, PositionErrorThreshold))
+		{
+			// Correct position
+			GetOwner()->SetActorLocation(ServerState.Position, true);
+		}
+
+		if (!LastPredictedState.Rotation.Equals(ServerState.Rotation, RotationErrorThreshold))
+		{
+			// Correct rotation
+			GetOwner()->SetActorRotation(ServerState.Rotation);
+		}
+
+		// Reapply remaining predicted inputs
+		for (int32 i = 1; i < PredictedStates.Num(); i++)
+		{
+			ApplyInput(GetWorld()->DeltaTimeSeconds);
+		}
 	}
 }
 
@@ -194,6 +242,52 @@ void UHelicopterMoverComponent::UpdateServerState()
 	ServerState.Rotation = GetOwner()->GetActorRotation();
 	ServerState.Velocity = CurrentVelocity;
 	ServerState.Timestamp = GetWorld()->GetTimeSeconds();
+}
+
+void UHelicopterMoverComponent::HandleCollision(const FHitResult& HitResult, float DeltaTime)
+{
+	FVector ImpactNormal = HitResult.ImpactNormal;
+
+	// Calculate the speed of the helicopter
+	float Speed = CurrentVelocity.Size();
+
+	// Check the threshold to decide if it is a skip or a skid
+	if (Speed > SkidVelocityThreshold) 
+	{
+		// Reflect the velocity off the impact surface
+		FVector ReflectedVelocity = FMath::GetReflectionVector(CurrentVelocity, ImpactNormal) * BounceDampingFactor;
+
+		// Ensure upward movement after reflection
+		if (ReflectedVelocity.Z < 0.0f)
+		{
+			ReflectedVelocity.Z = FMath::Abs(ReflectedVelocity.Z);
+		}
+
+		// Adjust position slightly above the surface
+		FVector ImpactOffsetVec = ImpactNormal * ImpactOffset; // Prevent sinking
+		FVector NewPosition = HitResult.ImpactPoint + ImpactOffsetVec;
+
+		CurrentVelocity = ReflectedVelocity;
+		GetOwner()->SetActorLocation(NewPosition, true);
+
+		//UE_LOG(LogTemp, Log, TEXT("Helicopter skipped off surface. New Position: %s, New Velocity: %s"),
+		//	   *NewPosition.ToString(), *CurrentVelocity.ToString());
+	}
+	else
+	{
+		// Project the velocity onto the plane defined by the impact normal to simulate sliding
+		FVector SlidingVelocity = FVector::VectorPlaneProject(CurrentVelocity, ImpactNormal) * SurfaceFriction;
+
+		// Adjust position to prevent sinking
+		FVector ImpactOffsetVec = ImpactNormal * ImpactOffset;
+		FVector NewPosition = HitResult.ImpactPoint + ImpactOffsetVec;
+
+		CurrentVelocity = SlidingVelocity;
+		GetOwner()->SetActorLocation(NewPosition, true);
+
+		UE_LOG(LogTemp, Log, TEXT("Helicopter sliding along surface. New Position: %s, New Velocity: %s"),
+			   *NewPosition.ToString(), *CurrentVelocity.ToString());
+	}
 }
 
 void UHelicopterMoverComponent::ApplyBodyTilt(float DeltaTime)
@@ -237,19 +331,34 @@ void UHelicopterMoverComponent::CorrectClientState()
 	FVector CurrentPosition = GetOwner()->GetActorLocation();
 	FRotator CurrentRotation = GetOwner()->GetActorRotation();
 
-	//FVector InterpolatedPosition = FMath::VInterpTo(CurrentPosition, ServerState.Position, GetWorld()->DeltaTimeSeconds, CorrectionInterpolation);
-	//FRotator InterpolatedRotation = FMath::RInterpTo(CurrentRotation, ServerState.Rotation, GetWorld()->DeltaTimeSeconds, CorrectionInterpolation);
-
-	//GetOwner()->SetActorLocation(InterpolatedPosition);
-	//GetOwner()->SetActorRotation(InterpolatedRotation);
-
 	// Correct position if the error is significant
 	if (!CurrentPosition.Equals(ServerState.Position, PositionErrorThreshold))
 	{
-		FVector InterpolatedPosition = FMath::VInterpTo(CurrentPosition, ServerState.Position, GetWorld()->DeltaTimeSeconds, CorrectionInterpolation);
-		GetOwner()->SetActorLocation(InterpolatedPosition);
-	}
+		FHitResult HitResult;
+		FVector End = ServerState.Position;
 
+		FCollisionShape CollisionShape = FCollisionShape::MakeSphere(CollisionSphere); // Adjust as necessary
+		bool bHit = GetWorld()->SweepSingleByChannel(
+			HitResult,
+			CurrentPosition,
+			End,
+			FQuat::Identity,
+			ECC_WorldStatic,
+			CollisionShape,
+			FCollisionQueryParams(FName(TEXT("CorrectSweep")), true, GetOwner())
+		);
+
+		if (bHit && HitResult.IsValidBlockingHit())
+		{
+			HandleCollision(HitResult, GetWorld()->DeltaTimeSeconds);
+		}
+		else
+		{
+			// Smooth position correction
+			FVector InterpolatedPosition = FMath::VInterpTo(CurrentPosition, ServerState.Position, GetWorld()->DeltaTimeSeconds, CorrectionInterpolation);
+			GetOwner()->SetActorLocation(InterpolatedPosition, true);
+		}
+	}
 	
 	// Correct rotation if the error is significant
 	if (!CurrentRotation.Equals(ServerState.Rotation, RotationErrorThreshold))
@@ -257,17 +366,6 @@ void UHelicopterMoverComponent::CorrectClientState()
 		FRotator InterpolatedRotation = FMath::RInterpTo(CurrentRotation, ServerState.Rotation, GetWorld()->DeltaTimeSeconds, CorrectionInterpolation);
 		GetOwner()->SetActorRotation(InterpolatedRotation);
 	}
-	
-
-	/*
-	// Correct yaw only, ignore pitch and roll
-	if (FMath::Abs(CurrentRotation.Yaw - ServerState.Rotation.Yaw) > RotationErrorThreshold)
-	{
-		FRotator TargetRotation = FRotator(CurrentRotation.Pitch, ServerState.Rotation.Yaw, CurrentRotation.Roll);
-		FRotator InterpolatedRotation = FMath::RInterpTo(CurrentRotation, TargetRotation, GetWorld()->DeltaTimeSeconds, CorrectionInterpolation);
-		GetOwner()->SetActorRotation(InterpolatedRotation);
-	}
-	*/
 
 	/*
 	// Only correct velocity if there's a large discrepancy

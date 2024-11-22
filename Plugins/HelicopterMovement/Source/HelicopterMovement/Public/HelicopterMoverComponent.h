@@ -4,7 +4,7 @@
 #include "Components/ActorComponent.h"
 #include "HelicopterMoverComponent.generated.h"
 
-/** Struct to hold state data for prediction and reconciliation */
+/* * * Struct to hold state data for prediction and reconciliation * * */
 USTRUCT()
 struct FHelicopterState
 {
@@ -23,7 +23,7 @@ struct FHelicopterState
 	float Timestamp;
 };
 
-/** Struct for inputs used in movement prediction */
+/* * * Struct for inputs used in movement prediction * * */
 USTRUCT()
 struct FHelicopterInput
 {
@@ -46,53 +46,82 @@ class HELICOPTERMOVEMENT_API UHelicopterMoverComponent : public UActorComponent
 
 public:
 	UHelicopterMoverComponent();
-
-	/** Input variables */
-	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "Input")
-	FVector DesiredInput;
-
-	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "Input")
-	float DesiredYawInput;
-
-	/** Helicopter movement configuration */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Settings")
+	
+	/* Helicopter movement configuration  *** will move variables to read only before shipping */
+	
+	/* Max Speed that the helicopter can move forward */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Properties | Speed")
 	float MaxForwardSpeed;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Settings")
+	/* Max Speed the helicopter can move from side to side */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Properties | Speed")
 	float MaxLateralSpeed;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Settings")
+	/* Max Speed that the helicopter can move up and down */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Properties | Speed")
 	float MaxVerticalSpeed;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Settings")
+	/* How fast the helicopter can rotate on its center axis */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Properties | Speed")
 	float YawSpeed;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Settings")
+	/* Controls how fast the helicopter will come to a stop */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Properties | Speed")
 	float VelocityDamping;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Settings")
-	float CorrectionInterpolation;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Settings")
-	float PositionErrorThreshold;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Settings")
-	float RotationErrorThreshold;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Settings")
+	/* Max angle the body can rotate */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Properties | Tilting")
 	float MaxTiltAngle;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Settings")
+	/* The interpolation speed for tilting the helicopter body */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Properties | Tilting")
 	float TiltSmoothingSpeed;
+
+	/* Adjust for how "bouncy" the surface is */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Properties | Colliding")
+	float BounceDampingFactor;
+
+	/* */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Properties | Colliding")
+	float SkidVelocityThreshold;
+
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Skipping")
+	float SurfaceFriction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Skipping")
+	float ImpactOffset; 
+
+	/* */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Properties | Colliding")
+	float CollisionSphere;
+
+	/* The interpolation speed for position error correction */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Properties | Server Corrections")
+	float CorrectionInterpolation;
+
+	/* How many units the client can be off before being corrected by the server */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Properties | Server Corrections")
+	float PositionErrorThreshold;
+
+	/* How many degrees the client can be off before being corrected by the server */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helicopter Properties | Server Corrections")
+	float RotationErrorThreshold;
+	
+	/* Input variables */
+	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "Helicopter Properties | Input")
+	FVector DesiredInput;
+	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "Helicopter Properties | Input")
+	float DesiredYawInput;
 
 protected:
 	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	/** Networking */
+	/* Networking */
 	UFUNCTION(Server, Reliable, WithValidation)
 	void Server_SendInput(const FHelicopterInput& Input);
-
+	
 	void Server_SendInput_Implementation(const FHelicopterInput& Input);
 	bool Server_SendInput_Validate(const FHelicopterInput& Input);
 
@@ -101,27 +130,31 @@ protected:
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
+	/* Helper function to check for the controlling actor */
 	bool IsOwnerLocallyControlled() const;
 
 private:
-	/** Movement functions */
+	/* Movement functions */
 	void ApplyInput(float DeltaTime);
 	void CorrectClientState();
 	void SavePredictedState(float Timestamp);
 	void ReconcileState();
 	void UpdateServerState();
 
+	void HandleCollision(const FHitResult& HitResult, float DeltaTime);
+
+	/* Used to handle applying tilt to the helicopter body based on current velocity */
 	void ApplyBodyTilt(float DeltaTime);
 
-	/** Current velocity and yaw speed */
-	UPROPERTY(Replicated)
+	/* Current velocity and yaw speed */
+	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category="Helicopter Properties | Speed", meta=(AllowPrivateAccess = "true"))
 	FVector CurrentVelocity;
 	float CurrentYawSpeed;
 
-	/** State management */
+	/* State management */
 	UPROPERTY(Replicated, ReplicatedUsing = OnRep_ServerState)
 	FHelicopterState ServerState;
 
-	/** Predicted states for reconciliation */
+	/* Predicted states for reconciliation */
 	TArray<FHelicopterState> PredictedStates;
 };
