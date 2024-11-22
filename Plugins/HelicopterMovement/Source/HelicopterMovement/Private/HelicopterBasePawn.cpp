@@ -4,6 +4,7 @@
 #include "HelicopterMoverComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "EnhancedInputComponent.h"
+#include "Net/UnrealNetwork.h"
 
 AHelicopterBasePawn::AHelicopterBasePawn()
 {
@@ -37,6 +38,16 @@ AHelicopterBasePawn::AHelicopterBasePawn()
 	EngineState = EEngine_State::EES_EngineOff;
 }
 
+void AHelicopterBasePawn::OnRep_RotorSpeed()
+{
+	
+}
+
+void AHelicopterBasePawn::OnRep_EngineState()
+{
+	
+}
+
 void AHelicopterBasePawn::BeginPlay()
 {
 	Super::BeginPlay();
@@ -55,10 +66,13 @@ void AHelicopterBasePawn::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	if (bIsStartingUp)
+	// Only execute rotor speed updates on the server
+	if (HasAuthority())
 	{
 		UpdateRotorSpeed(DeltaSeconds);
 	}
+	// Always spin the rotors locally for visuals
+	SpinRotors(DeltaSeconds);
 }
 
 void AHelicopterBasePawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -80,45 +94,95 @@ void AHelicopterBasePawn::SetupPlayerInputComponent(UInputComponent* PlayerInput
 		EnhancedInput->BindAction(ThrottleAction, ETriggerEvent::Completed, this, &AHelicopterBasePawn::HandleThrottleInputReleased);
 
 		// Bind rotor controls
-		EnhancedInput->BindAction(EngineToggleAction, ETriggerEvent::Triggered, this, &AHelicopterBasePawn::StartHelicopter);
+		EnhancedInput->BindAction(EngineToggleAction, ETriggerEvent::Started, this, &AHelicopterBasePawn::ToggleEngines);
 	}
 }
 
 void AHelicopterBasePawn::StartHelicopter()
 {
-	bIsStartingUp = true;
-	RotorSpeed = 0.0f;
+	if (HasAuthority())
+	{
+		Server_StartEngine();
+	}
 }
 
 void AHelicopterBasePawn::StopHelicopter()
 {
-	bIsStartingUp = false;
-	RotorSpeed = 0.0f;
+	if (HasAuthority())
+	{
+		Server_StopEngine();
+	}
+}
+
+void AHelicopterBasePawn::ToggleEngines()
+{
+	if (HasAuthority())
+	{
+		if (EngineState == EEngine_State::EES_EngineOff || EngineState == EEngine_State::EES_Stopping)
+		{
+			StartHelicopter();
+		}
+		else if (EngineState == EEngine_State::EES_EngineOn || EngineState == EEngine_State::EES_Starting)
+		{
+			StopHelicopter();
+		}
+	}
+}
+
+void AHelicopterBasePawn::Server_StartEngine_Implementation()
+{
+	EngineState = EEngine_State::EES_Starting;
+}
+
+void AHelicopterBasePawn::Server_StopEngine_Implementation()
+{
+	EngineState = EEngine_State::EES_Stopping;
 }
 
 void AHelicopterBasePawn::UpdateRotorSpeed(float DeltaTime)
 {
-	if (bIsStartingUp)
+	if (EngineState == EEngine_State::EES_Starting)
 	{
+		// Spin-up logic
 		RotorSpeed = FMath::Clamp(RotorSpeed + DeltaTime / RotorSpinUpTime, 0.0f, 1.0f);
 
-		MainRotor->AddRelativeRotation(FRotator(0.0f, RotorSpeed * 720.0f * DeltaTime, 0.0f));
-		TailRotor->AddRelativeRotation(FRotator(RotorSpeed * 540.0f * DeltaTime, 0.0f, 0.0f));
-		
 		if (RotorSpeed >= 1.0f)
 		{
+			// Transition to Engine On state once rotors reach full speed
 			EngineState = EEngine_State::EES_EngineOn;
 		}
 	}
-	else
+	else if (EngineState == EEngine_State::EES_Stopping)
 	{
-		EngineState = EEngine_State::EES_EngineOff;
-		bIsStartingUp = false;
+		// Spin-down logic
+		RotorSpeed = FMath::Clamp(RotorSpeed - DeltaTime / RotorSpinUpTime, 0.0f, 1.0f);
+
+		if (RotorSpeed <= 0.0f)
+		{
+			// Transition to Engine Off state once rotors stop
+			EngineState = EEngine_State::EES_EngineOff;
+		}
+	}
+	else if (EngineState == EEngine_State::EES_EngineOff)
+	{
+		// Ensure rotor speed is zero in the Engine Off state
+		RotorSpeed = 0.0f;
+	}
+}
+
+void AHelicopterBasePawn::SpinRotors(float DeltaTime)
+{
+	if (MainRotor && TailRotor)
+	{
+		MainRotor->AddRelativeRotation(FRotator(0.0f, RotorSpeed * 720.0f * DeltaTime, 0.0f));
+		TailRotor->AddRelativeRotation(FRotator(RotorSpeed * 540.0f * DeltaTime, 0.0f, 0.0f));
 	}
 }
 
 void AHelicopterBasePawn::HandleMovementInput(const FInputActionValue& Value)
 {
+	if (EngineState != EEngine_State::EES_EngineOn) return;
+	
 	FVector2D Input = Value.Get<FVector2D>();
 	if (HelicopterMover)
 	{
@@ -138,6 +202,8 @@ void AHelicopterBasePawn::HandleMovementInputReleased(const FInputActionValue& V
 
 void AHelicopterBasePawn::HandleYawInput(const FInputActionValue& Value)
 {
+	if (EngineState != EEngine_State::EES_EngineOn) return;
+	
 	if (HelicopterMover)
 	{
 		HelicopterMover->DesiredYawInput = Value.Get<float>();
@@ -154,6 +220,8 @@ void AHelicopterBasePawn::HandleYawInputReleased(const FInputActionValue& Value)
 
 void AHelicopterBasePawn::HandleThrottleInput(const FInputActionValue& Value)
 {
+	if (EngineState != EEngine_State::EES_EngineOn) return;
+	
 	if (HelicopterMover)
 	{
 		HelicopterMover->DesiredInput.Z = Value.Get<float>();
@@ -166,4 +234,12 @@ void AHelicopterBasePawn::HandleThrottleInputReleased(const FInputActionValue& V
 	{
 		HelicopterMover->DesiredInput.Z = 0.0f;
 	}
+}
+
+void AHelicopterBasePawn::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(AHelicopterBasePawn, RotorSpeed);
+	DOREPLIFETIME(AHelicopterBasePawn, EngineState);
 }

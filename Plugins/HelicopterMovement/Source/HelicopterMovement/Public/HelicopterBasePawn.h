@@ -73,17 +73,35 @@ public:
 	float RotorSpinUpTime;
 
 	/* Used to track the state of the engines being on/off */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Helicopter Properties | Engines")
+	UPROPERTY(ReplicatedUsing=OnRep_EngineState, VisibleAnywhere, BlueprintReadOnly, Category="Helicopter Properties | Engines")
 	EEngine_State EngineState;
+
+	// Replication handler for RotorSpeed
+	UFUNCTION()
+	void OnRep_RotorSpeed();
+
+	// Replication handler for EngineState
+	UFUNCTION()
+	void OnRep_EngineState();
 
 protected:
 	virtual void BeginPlay() override;
 
 private:
-	// Rotor controls
+
+	// Trigger engine start
+	UFUNCTION(Server, Reliable)
+	void Server_StartEngine();
 	void StartHelicopter();
+	
+	// Trigger engine stop
+	UFUNCTION(Server, Reliable)
+	void Server_StopEngine();
 	void StopHelicopter();
+
+	void ToggleEngines();
 	void UpdateRotorSpeed(float DeltaTime);
+	void SpinRotors(float DeltaTime);
 
 	// Input handlers
 	void HandleMovementInput(const FInputActionValue& Value);
@@ -93,7 +111,10 @@ private:
 	void HandleThrottleInput(const FInputActionValue& Value);
 	void HandleThrottleInputReleased(const FInputActionValue& Value);
 
+	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
 	// Rotor-related state
 	bool bIsStartingUp;
+	UPROPERTY(ReplicatedUsing=OnRep_RotorSpeed)
 	float RotorSpeed;
 };
